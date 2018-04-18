@@ -6,6 +6,7 @@ import scipy.misc
 import shutil
 import zipfile
 import time
+from PIL import Image
 import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
@@ -109,8 +110,15 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
     :param image_shape: Tuple - Shape of image
     :return: Output for for each test image
     """
+    print("data_folder = {}".format(data_folder))
     for image_file in glob(os.path.join(data_folder, 'image_2', '*.png')):
+        print("data_dir = {} /image_2/ file= {}".format(data_folder, image_file))
         image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
+        print("image_shape is {}".format(image.shape))
+        print("image is {}".format(image))
+        im = Image.fromarray(image) 
+        im.show()
+        exit()
 
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],
@@ -137,4 +145,5 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
     image_outputs = gen_test_output(
         sess, logits, keep_prob, input_image, os.path.join(data_dir, 'data_road/testing'), image_shape)
     for name, image in image_outputs:
+        print("saving {} {}".format(output_dir, name))
         scipy.misc.imsave(os.path.join(output_dir, name), image)
