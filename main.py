@@ -489,7 +489,8 @@ def run():
                 return np.array(frame_im)
 
 
-            cap = imageio.get_reader('./video/harder_challenge_video.mp4')
+            # cap = imageio.get_reader('./video/harder_challenge_video.mp4')
+            cap = imageio.get_reader('./video/NeighborhoodStreet.mov')
 
             md = cap.get_meta_data()
             fps = float(md['fps'])
