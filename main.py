@@ -1,4 +1,3 @@
-# import sys
 import os.path
 import tensorflow as tf
 import numpy as np
@@ -9,7 +8,6 @@ import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
 import imageio
-# from PIL import Image
 import scipy
 import argparse
 
@@ -181,6 +179,8 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes, iou_test=
         # Compute the optimizer as Adam and minimize combine ce and reg losses.
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
         train_op = optimizer.minimize(combined_loss, global_step=global_step, name='train_op')  
+    
+    tf.summary.scalar('learning rate', learning_rate)
 
     if iou_test is True:
         # Intersection over Union
@@ -222,7 +222,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, combined_loss, 
     :param keep_prob: TF Placeholder for dropout keep probability
     :param learning_rate: TF Placeholder for learning rate
     :param l2_regularization_rate: TF Placeholder for regularization rate
-    :param iou_obj: [0]: mean intersection-over-union [1]: operation for confusion matrix.
+    :param iou_obj: [0]: TF mean intersection-over-union [1]: TF operation for confusion matrix.
     """
 
     sess.run(tf.global_variables_initializer())
@@ -246,41 +246,43 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, combined_loss, 
         loss = -1.0
         total_iou = 0.0
         image_count = 0
-
+        counter = 0
         for images, labels in get_batches_fn(batch_size):
+            # run tests on alternate batches
+            if counter % 2 == 0:
 
-            feed_dict = {input_image: images,
-                         correct_label: labels,
-                         keep_prob: 0.5,
-                         learning_rate: lr}
+                feed_dict = {input_image: images,
+                            correct_label: labels,
+                            keep_prob: 0.5,
+                            learning_rate: lr}
 
-            # dropout parameter 50% is from the original paper
-            _, loss, summary = sess.run([train_op, combined_loss, tb_merged], feed_dict=feed_dict)
-            # Log loss for each global step
-            global_step = tf.train.get_or_create_global_step()
-            step = tf.train.global_step(sess, global_step)
-            train_writer.add_summary(summary, step)
-            print("  Step: {}, Combined_Loss ={:3.4f}".format(step, loss), end = '')
+                # dropout parameter 50% is from the original paper
+                _, loss, summary = sess.run([train_op, combined_loss, tb_merged], feed_dict=feed_dict)
+                # Log loss for each global step
+                global_step = tf.train.get_or_create_global_step()
+                step = tf.train.global_step(sess, global_step)
+                train_writer.add_summary(summary, step)
+                print("  Step: {}, Combined_Loss ={:3.3f}".format(step, loss), end = '')
 
-            image_count += len(images)
-            
-            if iou_obj is not None:
-                iou = iou_obj[0]
-                iou_op = iou_obj[1]
+                image_count += len(images)
+            else: # alternate images
+                if iou_obj is not None:
+                    iou = iou_obj[0]
+                    iou_op = iou_obj[1]
 
-                feed_dict={input_image: images,
-                        correct_label: labels,
-                        keep_prob: 1.0}
+                    feed_dict={input_image: images,
+                            correct_label: labels,
+                            keep_prob: 1.0}
 
-                sess.run(iou_op, feed_dict=feed_dict)
-                mean_iou = sess.run(iou)
-                total_iou += mean_iou * len(images)
-                print(" mean_iou = {:3.2f} total_iou = {:3.2f}".format(mean_iou, total_iou) )
-
-            # just do 1000 images per epoch, not whole set
-            if image_count % 1000 == 0:
+                    sess.run(iou_op, feed_dict=feed_dict)
+                    mean_iou = sess.run(iou)
+                    total_iou += mean_iou * len(images)
+                    avg_iou = total_iou / image_count
+                    print(" per batch mean_iou = {:3.3f}, per epoch avg_iou = {:3.3f}".format(mean_iou, avg_iou) )
+            counter += 1
+            # just do 500 images training per epoch, not whole set
+            if image_count % 500 == 0 and counter % 2 == 1:
                 break
-        
         avg_iou = total_iou / image_count
         print("Epoch {} / {}, Combined Loss {:0.5f}, Avg IoU {:0.5f}".format(epoch+1, epochs, loss, avg_iou))
         saver.save(sess, 'checkpoints/teeekay', global_step=step)
@@ -288,7 +290,6 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, combined_loss, 
 
     endTime = time.time()
     print('Training time: {:5.2f}s'.format(endTime - beginTime))
-#tests.test_train_nn(train_nn)
 
 def parse_args():
   """
@@ -325,14 +326,10 @@ def run():
     image_shape = (160, 576)
     data_dir = './data'
     runs_dir = './runs'
-
-    #args = parse_args()
-
-    model_path = './teeekay/'
-    
-    model = 'ss_mdl7'
+    model_path = './teeekay/'  
+    model = 'ss_mdl8'
     # mdl8 20 * 1,000 images at lr = 0.000025 
-    # mdl7 10 * 1,000 images at lr = 0.00005 
+    # mdl7 10 * 1,000 images at lr = 0.00001 
     # mdl6 with cityscapes data 
     #mdl4 100 at 0.00001  
     #mdl3 50 at .00003
@@ -358,15 +355,14 @@ def run():
     training_data_dir = os.path.join(data_dir, 'data_road/training')
 
     # Create function to get batches
-    #get_batches_fn = helper.gen_batch_function(training_data_dir, image_shape)
-    #test with cityscapes data
+    # get_batches_fn = helper.gen_batch_function(training_data_dir, image_shape)
+    # test with cityscapes data
     get_batches_fn = helper.gen_batch_function(data_dir, image_shape)
     print("get_batches_fn = {}".format(get_batches_fn))
 
     # OPTIONAL: Train and Inference on the cityscapes dataset instead of the Kitti dataset.
     # You'll need a GPU with at least 10 teraFLOPS to train on.
     #  https://www.cityscapes-dataset.com/
-
 
 
     config = tf.ConfigProto()
@@ -379,8 +375,7 @@ def run():
         # OPTIONAL: Augment Images for better results 
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
-        if FLAGS.mode == 0:
-            # TODO: Build NN using load_vgg, layers, and optimize function
+        if FLAGS.mode == 0:  # Train the model
 
             print("load_vgg")
             input_image, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
@@ -391,7 +386,7 @@ def run():
             print("optimize")
 
             logits, train_op, combined_loss, iou_obj = optimize(last_layer, correct_label, learning_rate, num_classes, iou_test=True)
-            # TODO: Train NN using the train_nn function
+
             print("Train!")
             initialized = tf.global_variables_initializer()
             sess.run(initialized)
@@ -408,8 +403,7 @@ def run():
             print("saving samples")
             helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
-        elif FLAGS.mode == 1:
-
+        elif FLAGS.mode == 1: # run inference on images from kitti dataset
             # Load saved model
             saver = tf.train.import_meta_graph(model_path+model+'.meta')
             saver.restore(sess, tf.train.latest_checkpoint(model_path))
@@ -426,7 +420,7 @@ def run():
             exit()
             return()
 
-        elif FLAGS.mode == 2: # Process Video
+        elif FLAGS.mode == 2: # Run inference on Video file
             def process_frame(sess, logits, keep_prob, image_pl, frame, frame_shape, image_shape):
                 """
                 Generate output using the video frames
@@ -440,6 +434,8 @@ def run():
                 :return: np.array of video frame image with superimposed semantic segmentation
                 """
                 softmax_criteria = 0.90
+                softmax_criteria1 = 0.50
+                softmax_criteria2 = 0.25
 
                 # resize to shape used in model
                 img_resized = scipy.misc.imresize(frame, image_shape, interp='lanczos')
@@ -453,20 +449,34 @@ def run():
                 im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
                 # apply mask anywhere softmax is > softmax_criteria
                 segmentation = (im_softmax > softmax_criteria).reshape(image_shape[0], image_shape[1], 1)
+                segmentation1 = (np.logical_and(im_softmax <= softmax_criteria, im_softmax > softmax_criteria1)).reshape(image_shape[0], image_shape[1], 1)
+                segmentation2 = (np.logical_and(im_softmax <= softmax_criteria1, im_softmax > softmax_criteria2)).reshape(image_shape[0], image_shape[1], 1)
 
                 # create mask as green and semitransparent
                 mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
+                mask1 = np.dot(segmentation1, np.array([[0, 225, 0, 63]]))
+                mask2 = np.dot(segmentation2, np.array([[0, 200, 0, 31]]))
 
                 mask = scipy.misc.toimage(mask, mode="RGBA")
+                mask1 = scipy.misc.toimage(mask1, mode="RGBA")
+                mask2 = scipy.misc.toimage(mask2, mode="RGBA")
+
                 mask_resized = scipy.misc.imresize(mask, frame_shape, mode="RGBA")
+                mask_resized1 = scipy.misc.imresize(mask1, frame_shape, mode="RGBA")
+                mask_resized2 = scipy.misc.imresize(mask2, frame_shape, mode="RGBA")
+
                 mask_resized = scipy.misc.toimage(mask_resized, mode="RGBA")
+                mask_resized1 = scipy.misc.toimage(mask_resized1, mode="RGBA")
+                mask_resized2 = scipy.misc.toimage(mask_resized2, mode="RGBA")
+
                 frame_im = scipy.misc.toimage(frame)
+                frame_im.paste(mask_resized2, box=None, mask=mask_resized2)
+
+                frame_im.paste(mask_resized1, box=None, mask=mask_resized1)
                 frame_im.paste(mask_resized, box=None, mask=mask_resized)
                 return np.array(frame_im)
 
 
-        # OPTIONAL: Apply the trained model to a video
-            # open video
             cap = imageio.get_reader('./video/harder_challenge_video.mp4')
 
             md = cap.get_meta_data()
@@ -497,9 +507,9 @@ def run():
 
             for frame in cap:
                 frames += 1
-                
+               
                 #uncomment for early stop
-                #framecount = 50
+                #framecount = 150
                 
                 if frames > framecount:
                     print("\nClosed video after passing expected framecount of {}".format(frames-1))

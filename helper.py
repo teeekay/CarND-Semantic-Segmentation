@@ -142,6 +142,10 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
     :param image_shape: Tuple - Shape of image
     :return: Output for for each test image
     """
+    softmax_criteria = 0.75
+    softmax_criteria1 = 0.5
+    softmax_criteria2 = 0.25
+
     print("data_folder = {}".format(data_folder))
     for image_file in glob(os.path.join(data_folder, 'image_2', '*.png')):
         image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
@@ -149,10 +153,23 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
             [tf.nn.softmax(logits)],
             {keep_prob: 1.0, image_pl: [image]})
         im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
-        segmentation = (im_softmax > 0.90).reshape(image_shape[0], image_shape[1], 1)
+        segmentation = (im_softmax > softmax_criteria).reshape(image_shape[0], image_shape[1], 1)
+        segmentation1 = (np.logical_and(im_softmax <= softmax_criteria, im_softmax > softmax_criteria1)).reshape(image_shape[0], image_shape[1], 1)
+        segmentation2 = (np.logical_and(im_softmax <= softmax_criteria1, im_softmax > softmax_criteria2)).reshape(image_shape[0], image_shape[1], 1)
+
+        # create mask as green and semitransparent
         mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
+        mask1 = np.dot(segmentation1, np.array([[0, 225, 0, 63]]))
+        mask2 = np.dot(segmentation2, np.array([[0, 200, 0, 31]]))
+
         mask = scipy.misc.toimage(mask, mode="RGBA")
+        mask1 = scipy.misc.toimage(mask1, mode="RGBA")
+        mask2 = scipy.misc.toimage(mask2, mode="RGBA")
+
         street_im = scipy.misc.toimage(image)
+
+        street_im.paste(mask2, box=None, mask=mask2)
+        street_im.paste(mask1, box=None, mask=mask1)
         street_im.paste(mask, box=None, mask=mask)
 
         yield os.path.basename(image_file), np.array(street_im)

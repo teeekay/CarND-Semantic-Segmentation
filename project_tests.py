@@ -112,11 +112,13 @@ def test_optimize(optimize):
 
 @test_safe
 def test_train_nn(train_nn):
+    #TODO fix for new train_nn
     epochs = 1
-    batch_size = 2
+    batch_size = 1
+    l2_regularization_rate=0.999
 
-    def get_batches_fn(batach_size_parm):
-        shape = [batach_size_parm, 2, 3, 3]
+    def get_batches_fn(batch_size_parm):
+        shape = [batch_size_parm, 2, 3, 3]
         return np.arange(np.prod(shape)).reshape(shape)
 
     train_op = tf.constant(0)
@@ -125,6 +127,8 @@ def test_train_nn(train_nn):
     correct_label = tf.placeholder(tf.float32, name='correct_label')
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
     learning_rate = tf.placeholder(tf.float32, name='learning_rate')
+    mean_iou = tf.placeholder(tf.float32, name='I_o_U')
+    iou_op = tf.constant(0)
     
     with tf.Session() as sess:
         parameters = {
@@ -137,7 +141,10 @@ def test_train_nn(train_nn):
             'input_image': input_image,
             'correct_label': correct_label,
             'keep_prob': keep_prob,
-            'learning_rate': learning_rate}
+            'learning_rate': learning_rate,
+            'l2_regularization_rate': l2_regularization_rate,
+            'iou_obj': (mean_iou, iou_op)
+            }
         _prevent_print(train_nn, parameters)
 
 
