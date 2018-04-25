@@ -34,19 +34,19 @@ In this application, labelled training images taken from the [Cityscapes](https:
 
 In each epoch 500 images are randomly selected from the dataset of 2,876 and a different set of 500 images are used to calculate Intersection over Union.  `adjust_cityscapes.py` was used to downscale and crop the source images to the model size of 576 pixels wide by 160 high.  The labelled images were also processed to match those provided with the KITTI dataset in this assignment, where all pixels that did not match the purple color (RGB=128,64,128) assigned to roads by Cityscapes were set to red (RGB=255,0,0).
 
-example images from Cityscapes Aachen
-| 
+
+| Example Image from Cityscapes Aachen Dataset
 |-|
 | ![alt-text][aachen street image] |
-| Aachen Cityscapes image 19
+| Aachen Cityscapes image 19 |
 | ![alt-text][aachen labelled image] |
-| Road pixels labelled in purple - everything else Red
+| Road pixels labelled in purple - everything else Red |
 
 
 After training, the inference model was used on the KITTI images which were not used during training.  A gradational mask of green pixels was overlaid onto the original images based on the softmax probability that the pixel belonged to road (decreasing transparency as probability increases above 0.25, 0.5, and 0.75).  In most cases the gradation was quite abrupt, with sharp definition of areas the model assigned as road. 
 
 
-|examples 
+|examples of 
 |-|
 |![][um_000002]|
 |![][um_000011]|
@@ -58,16 +58,30 @@ After training, the inference model was used on the KITTI images which were not 
 |![][uu_000011]|
 
 
+A video was also processed with acceptable results.
+
 [![Processed Video](https://github.com/teeekay/CarND-Semantic-Segmentation/blob/master/examples/movie.jpg?raw=true)](https://youtu.be/NhGzExWjcDM)
 
-### Training
 
-The Adam optimizer was used in combination with a learning rate of 0.000015.  The model was run for 15 epochs 
+## Training
+
+The Adam optimizer was used in combination with a learning rate of 0.000015.  The model was run for 15 epochs of 500 steps each, with each step using a batch size of 1.  I was limited to using this batch size as my GPU would not support larger batch sizes.
+
+Intersection over Union (IOU) was computed after each step along with cross entropy loss and regularization losses.
+
+A plot of IOU increasing and loss decreasing as the model was trained is shown below.
+
+
+<img src="https://github.com/teeekay/CarND-Semantic-Segmentation/blob/master/examples/iou_and_xentloss.png?raw=true" width=700> 
+
+## Model Structure as displayed in Tensorboard
+
+<img src="https://github.com/teeekay/CarND-Semantic-Segmentation/blob/master/examples/tf_graph.png?raw=true" width=700 alt="tensorflow model in tensorboard">  
 
 
 
 
-
+## From Udacity
 ### Introduction
 In this project, you'll label the pixels of a road in images using a Fully Convolutional Network (FCN).
 
