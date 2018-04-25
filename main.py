@@ -51,7 +51,7 @@ def load_vgg(sess, vgg_path):
     lyr7 = graph.get_tensor_by_name(vgg_layer7_out_tensor_name)
 
     return w1, keep, lyr3, lyr4, lyr7
-
+print("Testing load_vgg")
 tests.test_load_vgg(load_vgg, tf)
 
 
@@ -64,13 +64,10 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_regul
     :param num_classes: Number of classes to classify
     :return: The Tensor for the last layer of output
     """
-    # TODO: Implement function
-    #conv_transpose_init_stddev = 0.001
     conv_init_stddev = 0.01
 
-    # apply 1x1 convolution to layers so that number of classes is reduced
-
     with tf.name_scope('decoder') as scope:
+        # apply 1x1 convolution to layer so that number of classes is reduced
         l7_conv_1x1 = tf.layers.conv2d(vgg_layer7_out,
                                    filters=num_classes,
                                    kernel_size=(1,1),
@@ -79,7 +76,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_regul
                                    kernel_initializer=tf.truncated_normal_initializer(stddev=conv_init_stddev),
                                    name='l7_conv_1x1')
 
-    # upscale layer 7 by X2 to match layer 4 then add together
+        # upscale layer 7 by 2X to match layer 4 size
         l7_upscaledx2 = tf.layers.conv2d_transpose(l7_conv_1x1,
                                    filters=num_classes,
                                    kernel_size=(4,4),
@@ -89,8 +86,10 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_regul
                                    kernel_initializer=tf.zeros_initializer,
                                    name='l7_upscaledx2')
 
+        # first scale values in pool4 by multiplying them by 0.01
         pool4_out_scaled = tf.multiply(vgg_layer4_out, 0.01, name='pool4_out_scaled')
 
+        # apply 1x1 convolution to scaled pool4
         l4_conv_1x1 = tf.layers.conv2d(pool4_out_scaled,
                                    filters=num_classes,
                                    kernel_size=(1,1),
@@ -99,9 +98,10 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_regul
                                    kernel_initializer=tf.truncated_normal_initializer(stddev=conv_init_stddev),
                                    name='l4_conv_1x1')
 
+        # add the layers together
         skipsum_7_4 = tf.add(l7_upscaledx2, l4_conv_1x1, name='skipsum_7_4')
 
-    # upscale sum of 7 and 4 by X2 to match layer 3 then add together
+        # upscale sum of 7 and 4 by 2X to match size of layer 3
         output_2XSS_7_4 = tf.layers.conv2d_transpose(skipsum_7_4,
                                    filters=num_classes,
                                    kernel_size=(4,4),
@@ -111,8 +111,10 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_regul
                                    kernel_initializer=tf.zeros_initializer,
                                    name='output_2XSS_7_4')
 
+        # scale values in pool3 by multiplying them by 0.0001
         pool3_out_scaled = tf.multiply(vgg_layer3_out, 0.0001, name='pool3_out_scaled')
 
+        # apply 1x1 convolution to scaled pool3
         l3_conv_1x1 = tf.layers.conv2d(pool3_out_scaled,
                                    filters=num_classes,
                                    kernel_size=(1,1),
@@ -120,10 +122,10 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_regul
                                    kernel_regularizer=tf.contrib.layers.l2_regularizer(l2_regularization_rate),
                                    kernel_initializer=tf.truncated_normal_initializer(stddev=conv_init_stddev),
                                    name='l3_conv_1x1')
-
+        # add the layers together
         skipsum_7_4_3 = tf.add(output_2XSS_7_4, l3_conv_1x1, name='skipsum_7_4_3')
     
-    # upscale sum of 7 4 and 3 by X8 to match original
+        # upscale sum of layers 7 4 and 3 by 8X to match original
         ss_7_4_3_conv2d = tf.layers.conv2d_transpose(skipsum_7_4_3,
                                    filters=num_classes,
                                    kernel_size=(16, 16),
@@ -135,6 +137,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_regul
 
         last_layer = tf.identity(ss_7_4_3_conv2d, name='last_layer')
     return last_layer 
+print("Testing layers")
 tests.test_layers(layers)
 
 
@@ -145,6 +148,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes, iou_test=
     :param correct_label: TF Placeholder for the correct label image
     :param learning_rate: TF Placeholder for the learning rate
     :param num_classes: Number of classes to classify
+    :param iou_test: Number of classes to classify
     :return: Tuple of (logits, train_op, combined_loss, iou_obj)
     """
     with tf.name_scope('combined_loss'):
@@ -178,9 +182,8 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes, iou_test=
 
         # Compute the optimizer as Adam and minimize combine ce and reg losses.
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-        train_op = optimizer.minimize(combined_loss, global_step=global_step, name='train_op')  
-    
-    tf.summary.scalar('learning rate', learning_rate)
+        train_op = optimizer.minimize(combined_loss, global_step=global_step, name='train_op')
+        tf.summary.scalar('learning rate', learning_rate)
 
     if iou_test is True:
         # Intersection over Union
@@ -198,17 +201,11 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes, iou_test=
         return logits, train_op, combined_loss
 
 
-    # optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-    # cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels))
-
-    # train_op = optimizer.minimize(cross_entropy_loss)
-
-    # return logits, train_op, cross_entropy_loss
+print("Testing optimize")
 tests.test_optimize(optimize)
 
-
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, combined_loss, input_image,
-             correct_label, keep_prob, learning_rate, l2_regularization_rate=0.001, iou_obj=None, lr=0.0001):
+             correct_label, keep_prob, learning_rate, l2_regularization_rate=0.001, lr=0.0001, iou_obj=None):
     """
     Train neural network and print out the loss during training.
     :param sess: TF Session
@@ -225,6 +222,12 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, combined_loss, 
     :param iou_obj: [0]: TF mean intersection-over-union [1]: TF operation for confusion matrix.
     """
 
+    if iou_obj is None:
+        print("running without IOU")
+        use_iou = False
+    else:
+        use_iou = True
+
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())
 
@@ -237,19 +240,18 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, combined_loss, 
     saver = tf.train.Saver()
 
     beginTime = time.time()
-
-
-    print("Training...")
+    print("Training Begins at {}...".format(datetime.datetime.fromtimestamp(beginTime)))
 
     for epoch in range(epochs):
         print("EPOCH {} ...".format(epoch + 1))
         loss = -1.0
         total_iou = 0.0
+        avg_iou = 0.0
         image_count = 0
         counter = 0
         for images, labels in get_batches_fn(batch_size):
-            # run tests on alternate batches
-            if counter % 2 == 0:
+            # run tests on alternate batches if checking IOU
+            if counter % 2 == 0 or use_iou is False:
 
                 feed_dict = {input_image: images,
                             correct_label: labels,
@@ -258,15 +260,16 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, combined_loss, 
 
                 # dropout parameter 50% is from the original paper
                 _, loss, summary = sess.run([train_op, combined_loss, tb_merged], feed_dict=feed_dict)
+                
                 # Log loss for each global step
                 global_step = tf.train.get_or_create_global_step()
                 step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary, step)
-                print("  Step: {}, Combined_Loss ={:3.3f}".format(step, loss), end = '')
-
+                print("  Step: {}, Combined_Loss ={:3.3f} ".format(step, loss), end='')
                 image_count += len(images)
+
             else: # alternate images
-                if iou_obj is not None:
+                if use_iou is True:
                     iou = iou_obj[0]
                     iou_op = iou_obj[1]
 
@@ -281,44 +284,46 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, combined_loss, 
                     print(" per batch mean_iou = {:3.3f}, per epoch avg_iou = {:3.3f}".format(mean_iou, avg_iou) )
             counter += 1
             # just do 500 images training per epoch, not whole set
-            if image_count % 500 == 0 and counter % 2 == 1:
+            if image_count % 500 == 0 and counter % 2 == 0:
                 break
         avg_iou = total_iou / image_count
         print("Epoch {} / {}, Combined Loss {:0.5f}, Avg IoU {:0.5f}".format(epoch+1, epochs, loss, avg_iou))
         saver.save(sess, 'checkpoints/teeekay', global_step=step)
- 
 
     endTime = time.time()
+    print("Training finishes at {}...".format(datetime.datetime.fromtimestamp(endTime)))
     print('Training time: {:5.2f}s'.format(endTime - beginTime))
+print("Testing train_nn")
+tests.test_train_nn(train_nn)
+
 
 def parse_args():
-  """
-  Set up argument parser for command line operation of main.py program
-  """
+    """
+    Argument parser
+    """
 
-  parser = argparse.ArgumentParser(description='Semantic Segmentation of Road Scenes')
+    parser = argparse.ArgumentParser(description='Semantic Segmentation of Road Scenes')
 
-  parser.add_argument('-md', '--mode',
-    help='mode [1]: 0=Train, 1=Test, 2=Video', type=int, default=1)
+    parser.add_argument('-md', '--mode',
+        help='mode [1]: 0=Train, 1=Test, 2=Video', type=int, default=1)
 
-  parser.add_argument('-ep', '--epochs',
-    help='epochs [5]', type=int, default=5)
+    parser.add_argument('-ep', '--epochs',
+        help='epochs [5]', type=int, default=5)
 
-  parser.add_argument('-bs', '--batch_size',
-    help='batch size [1]', type=int, default=1)
+    parser.add_argument('-bs', '--batch_size',
+        help='batch size [1]', type=int, default=1)
 
-  parser.add_argument('-lr', '--learn_rate',
-    help='learning rate [0.0001]', type=float, default=0.0001)
+    parser.add_argument('-lr', '--learn_rate',
+        help='learning rate [0.0001]', type=float, default=0.0001)
 
-  parser.add_argument('-l2r', '--l2_regularization_rate',
-    help='l2 regularization rate [0.00001]', type=float, default=0.00001)
+    parser.add_argument('-l2r', '--l2_regularization_rate',
+        help='l2 regularization rate [0.00001]', type=float, default=0.00001)
 
-  parser.add_argument('-crit', '--softmax_criteria',
-    help='softmax criteria [0.9]', type=float, default=0.90)
+    parser.add_argument('-mod', '--model',
+        help='model name to use [ssmodel]', default='ssmodel')
 
-  # args = parser.parse_args()
-  args = parser.parse_known_args()
-  return args
+    args = parser.parse_known_args()
+    return args
 
 
 def run():
@@ -326,16 +331,21 @@ def run():
     image_shape = (160, 576)
     data_dir = './data'
     runs_dir = './runs'
-    model_path = './teeekay/'  
-    model = 'ss_mdl8'
-    # mdl8 20 * 1,000 images at lr = 0.000025 
-    # mdl7 10 * 1,000 images at lr = 0.00001 
+    model_path = './teeekay/'
+    model = FLAGS.model
+    #'ss_mdl10'
+    # mdl9 15 * 500 at lr = 0.000015
+    # mdl8 15 * 500 images at lr = 0.000025 
+    # mdl7 5 * 500 images at lr = 0.00001 
     # mdl6 with cityscapes data 
     #mdl4 100 at 0.00001  
     #mdl3 50 at .00003
     #mdl2 25 at .00005
+    print ("model = '{ssmodel}'".format(ssmodel=model))
  
-    correct_label = tf.placeholder(tf.int32, [None, None, None, num_classes], name='correct_label')
+    with tf.name_scope("data"):
+        correct_label = tf.placeholder(tf.int32, [None, None, None, num_classes], name='correct_label')
+
     learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
     Kepochs = FLAGS.epochs  # set to reasonable value
@@ -379,6 +389,8 @@ def run():
 
             print("load_vgg")
             input_image, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
+            with tf.name_scope("data"):
+                tf.summary.image('input_images', input_image, max_outputs=3)
 
             print("layers")
             last_layer = layers(layer3_out, layer4_out, layer7_out, num_classes)
@@ -392,14 +404,15 @@ def run():
             sess.run(initialized)
             
             train_nn(sess, Kepochs, Kbatch_size, get_batches_fn, train_op, combined_loss, input_image, correct_label, 
-                    keep_prob, learning_rate, Kl2_regularization_rate, iou_obj=iou_obj, lr=KLearningRate)
+                    keep_prob, learning_rate, Kl2_regularization_rate, lr=KLearningRate, iou_obj=iou_obj)
 
             # Save model result
             saver = tf.train.Saver()
             save_path = saver.save(sess, model_path+model)
             print("\nSaved model at {}.".format(save_path))
+            print("Kepochs ={}, Kbatch_size= {}, KLearningRate={:3.6f}, Kl2_regularization_rate ={:3.6f} Model name ={}"
+                  .format(Kepochs, Kbatch_size, KLearningRate, Kl2_regularization_rate, model_path+model))
 
-            # TODO: Save inference data using helper.save_inference_samples
             print("saving samples")
             helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
@@ -418,7 +431,6 @@ def run():
             helper.save_inference_samples(runs_dir, data_dir, sess, image_shape,
                                             logits, keep_prob, img_input)
             exit()
-            return()
 
         elif FLAGS.mode == 2: # Run inference on Video file
             def process_frame(sess, logits, keep_prob, image_pl, frame, frame_shape, image_shape):
@@ -433,9 +445,9 @@ def run():
                 :param image_shape: Tuple - Shape of image used in TF model
                 :return: np.array of video frame image with superimposed semantic segmentation
                 """
-                softmax_criteria = 0.90
-                softmax_criteria1 = 0.50
-                softmax_criteria2 = 0.25
+                softmax_criteria = 0.5
+                softmax_criteria1 = 0.45
+                softmax_criteria2 = 0.4
 
                 # resize to shape used in model
                 img_resized = scipy.misc.imresize(frame, image_shape, interp='lanczos')
@@ -499,7 +511,7 @@ def run():
             logits = tf.reshape(last_layer, (-1, num_classes))
 
             fileruntime = datetime.datetime.now().strftime("%Y%m%d%H:%M:%S")
-            outfilename = './video/ss_video_output_' + fileruntime + '.mp4'
+            outfilename = './video/ss_video_output_' + model + fileruntime + '.mp4'
 
             out = imageio.get_writer(outfilename, fps=fps)
 
@@ -526,5 +538,4 @@ def run():
 
 if __name__ == '__main__':
     FLAGS, _ = parse_args()
-
     run()
