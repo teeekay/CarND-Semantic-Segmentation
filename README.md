@@ -1,3 +1,6 @@
+[aachen street image]: https://github.com/teeekay/CarND-Semantic-Segmentation/blob/master/examples/aachen_000053_000019_leftImg8bit.png "Aachen Cityscapes image 53"
+[aachen labelled image]: https://github.com/teeekay/CarND-Semantic-Segmentation/blob/master/examples/aachen_000053_000019_gtFine_color.png "Aachen Cityscapes labelled image 53"
+
 # Semantic Segmentation
 
 ###
@@ -5,7 +8,12 @@ In this application I used labelled training images from the cityscapes training
 
 Each epoch used 500 randomly selected images from the dataset of 2,876 images which had been downscaled to the model size of 576 wide by 160 high.  I also generated labelled images corresponding to those used with the KITTI dataset in this assignment, where all pixels that did not match the color assigned to road ( were set to red (255,0,0)
 
-example images from Citscapes Aachen - 'aachen_000053_000019_leftImg8bit.png', aachen_000053_000019_gtFine_color.png
+example images from Citscapes Aachen
+![alt-text][aachen street image]
+![alt-text][aachen labelled image]
+
+
+'aachen_000053_000019_leftImg8bit.png', aachen_000053_000019_gtFine_color.png
 
 To run training for 15 epochs with a batch size of 1 and a learning rate of 0.00015 using training samples from the cityscapes dataset.
  
