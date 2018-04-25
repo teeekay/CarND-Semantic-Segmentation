@@ -46,7 +46,7 @@ In each epoch 500 images are randomly selected from the dataset of 2,876 and a d
 After training, the inference model was used on the KITTI images which were not used during training.  A gradational mask of green pixels was overlaid onto the original images based on the softmax probability that the pixel belonged to road (decreasing transparency as probability increases above 0.25, 0.5, and 0.75).  In most cases the gradation was quite abrupt, with sharp definition of areas the model assigned as road. 
 
 
-|examples of 
+|Images from KITTI dataset with road predictions labelled|
 |-|
 |![][um_000002]|
 |![][um_000011]|
