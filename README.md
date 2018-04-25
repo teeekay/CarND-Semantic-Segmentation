@@ -60,7 +60,7 @@ After training, the inference model was used on the KITTI images which were not 
 
 A video was also processed with acceptable results.
 
-[![Processed Video](https://github.com/teeekay/CarND-Semantic-Segmentation/blob/master/examples/movie.jpg?raw=true)](https://youtu.be/NhGzExWjcDM)
+[<img src="https://github.com/teeekay/CarND-Semantic-Segmentation/blob/master/examples/movie.jpg?raw=true" width = 300>](https://youtu.be/NhGzExWjcDM)
 
 
 ## Training
