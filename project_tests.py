@@ -98,7 +98,7 @@ def test_optimize(optimize):
     layers_output = tf.Variable(tf.zeros(shape))
     correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
     learning_rate = tf.placeholder(tf.float32)
-    logits, train_op, combined_loss = optimize(layers_output, correct_label, learning_rate, num_classes)
+    logits, train_op, combined_loss, iou_obj = optimize(layers_output, correct_label, learning_rate, num_classes, iou_test=True)
 
     _assert_tensor_shape(logits, [2*3*4, num_classes], 'Logits')
 
@@ -112,24 +112,32 @@ def test_optimize(optimize):
 
 @test_safe
 def test_train_nn(train_nn):
-    #TODO fix for new train_nn
-    epochs = 1
+    #Adjust to add in IOU obj
+    epochs = 2
     batch_size = 1
-    l2_regularization_rate=0.999
-
+ 
     def get_batches_fn(batch_size_parm):
         shape = [batch_size_parm, 2, 3, 3]
         return np.arange(np.prod(shape)).reshape(shape)
 
     train_op = tf.constant(0)
+    iou_op = tf.constant(0)
+    mean_iou = tf.constant(10.11)
+    iou_obj = (mean_iou, iou_op)
+
     combined_loss = tf.constant(10.11)
+    regularization_loss = tf.constant(10.11)
+    ce_loss = tf.constant(10.11)
     input_image = tf.placeholder(tf.float32, name='input_image')
     correct_label = tf.placeholder(tf.float32, name='correct_label')
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
     learning_rate = tf.placeholder(tf.float32, name='learning_rate')
-    mean_iou = tf.placeholder(tf.float32, name='I_o_U')
-    iou_op = tf.constant(0)
-    
+
+    global_step = tf.Variable(0, trainable=False, name='global_step')
+    tf.summary.scalar('regularization loss', regularization_loss)
+    tf.summary.scalar('cross entropy loss', ce_loss)
+    tf.summary.scalar('combined loss', combined_loss)
+
     with tf.Session() as sess:
         parameters = {
             'sess': sess,
@@ -142,8 +150,7 @@ def test_train_nn(train_nn):
             'correct_label': correct_label,
             'keep_prob': keep_prob,
             'learning_rate': learning_rate,
-            'l2_regularization_rate': l2_regularization_rate,
-            'iou_obj': (mean_iou, iou_op)
+            'iou_obj': iou_obj
             }
         _prevent_print(train_nn, parameters)
 
